@@ -13,13 +13,12 @@ use rand::Rng;
 
 const STAGE_WIDTH: usize = 11;
 const STAGE_HEIGHT: usize = 20;
-const STAGE_WIDTH_F: f64 = 11.0;
-const STAGE_HEIGHT_F: f64 = 20.0;
 const UPDATE_INTERVAL: f64 = 0.1;
 //const BLOCK_ARRAY_SIZE: usize = 16;
 const BLOCK_SIZE: usize = 4;
 
 const BG_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
+const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 
 /*
@@ -130,11 +129,13 @@ fn can_move_block(game_state: &GameState) -> bool {
 	for i in 0..BLOCK_SIZE {
 		for j in 0..BLOCK_SIZE {
 			if game_state.current_block[BLOCK_SIZE-1-i][BLOCK_SIZE-1-j] {
-				if game_state.current_position.y + BLOCK_SIZE-i == STAGE_HEIGHT-1 {
+				if game_state.current_position.y + BLOCK_SIZE-1-i == STAGE_HEIGHT-1 {
+					println!("block pos: {}, actual pos: {}", game_state.current_position.y, game_state.current_position.y + BLOCK_SIZE-1-i);
 					println!("hit bottom");
-					return false; // hit another block
-				} else if game_state.stage[game_state.current_position.y + BLOCK_SIZE-j][game_state.current_position.x + BLOCK_SIZE-1-i] {
-					return false; // hit bottom
+					return false;
+				} else if game_state.stage[game_state.current_position.y + BLOCK_SIZE-i][game_state.current_position.x + BLOCK_SIZE-1-j] {
+					println!("hit block");
+					return false;
 				}
 			}
 		}
@@ -179,11 +180,20 @@ impl App {
 	fn render(&mut self, args: &RenderArgs, game_state: &GameState) {
         use graphics::*;
 
-		let cell_width = args.window_size[0] / STAGE_WIDTH_F;
-		let cell_height = args.window_size[1] / STAGE_HEIGHT_F;
+		let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
+		let cell_height = args.window_size[1] / (STAGE_HEIGHT as f64);
 
 		self.gl.draw(args.viewport(), |c, gl| {
 			clear(BG_COLOR, gl); // clear screen
+
+			// draw grid
+			for i in 0..STAGE_HEIGHT {
+				for j in 0..STAGE_WIDTH {
+					let part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+					let border = Rectangle::new_border(GRID_COLOR, 1.0);
+					border.draw(part, &draw_state::DrawState::default(), c.transform, gl)
+				}
+			}
 			
 			// draw stage
 			for i in 0..STAGE_HEIGHT {
@@ -227,15 +237,15 @@ impl App {
 }
 
 fn main() {
-    // Change this to OpenGL::V2_1 if not working.
-    let opengl = OpenGL::V3_2;
+	// Change this to OpenGL::V2_1 if not working.
+	let opengl = OpenGL::V3_2;
 
-    // Create an Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [300, 500])
-        .graphics_api(opengl)
-        .exit_on_esc(true)
-        .build()
-        .unwrap();
+	// Create an Glutin window.
+	let mut window: Window = WindowSettings::new("spinning-square", [300, 500])
+		.graphics_api(opengl)
+		.exit_on_esc(true)
+		.build()
+		.unwrap();
 
 	let mut game_state = GameState {
 		stage: [[false; STAGE_WIDTH]; STAGE_HEIGHT],
@@ -243,23 +253,23 @@ fn main() {
 		current_position: Pos{x: 0, y: 0}
 	};
 
-    // Create a new game and run it.
-    let mut app = App {
+	// Create a new game and run it.
+	let mut app = App {
 		gl: GlGraphics::new(opengl),
 		duration: 0.0,
 		last_update: 0.0
-    };
+	};
 
 	ganerate_new_block(&mut game_state);
 
-    let mut events = Events::new(EventSettings::new());
-    while let Some(e) = events.next(&mut window) {
-        if let Some(args) = e.render_args() {
-            app.render(&args, &game_state);
-        }
+	let mut events = Events::new(EventSettings::new());
+	while let Some(e) = events.next(&mut window) {
+		if let Some(args) = e.render_args() {
+			app.render(&args, &game_state);
+		}
 
-        if let Some(args) = e.update_args() {
+		if let Some(args) = e.update_args() {
 			app.update(&args, &mut game_state);
-        }
-    }
+		}
+	}
 }
