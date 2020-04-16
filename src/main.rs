@@ -7,19 +7,23 @@ extern crate rand;
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::input::*;
 use piston::window::WindowSettings;
 use rand::Rng;
 
-const STAGE_WIDTH: usize = 11;
+const STAGE_WIDTH: usize = 10;
 const STAGE_HEIGHT: usize = 20;
-const UPDATE_INTERVAL: f64 = 0.1;
-//const BLOCK_ARRAY_SIZE: usize = 16;
+const UPDATE_INTERVAL: f64 = 0.5;
 const BLOCK_SIZE: usize = 4;
+
+const SCREEN_WIDTH: u32 = 250;
+const SCREEN_HEIGHT: u32 = 500;
 
 const BG_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
+
+type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
 
 /*
 🍔🍔🧙🧙
@@ -27,7 +31,7 @@ const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const SMASHBOY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const SMASHBOY_BLOCK: BlockType = 
 	[[true, true, false, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -39,7 +43,7 @@ const SMASHBOY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const ORANGE_RICKY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const ORANGE_RICKY_BLOCK: BlockType = 
 	[[false, false, true, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -51,7 +55,7 @@ const ORANGE_RICKY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const BLUE_RICKY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const BLUE_RICKY_BLOCK: BlockType = 
 	[[true, false, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -63,7 +67,7 @@ const BLUE_RICKY_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const CLEVELAND_Z_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const CLEVELAND_Z_BLOCK: BlockType = 
 	[[true, true, false, false],
 	 [false, true, true, false],
 	 [false, false, false, false],
@@ -75,7 +79,7 @@ const CLEVELAND_Z_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const RHODE_ISLAND_Z_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const RHODE_ISLAND_Z_BLOCK: BlockType = 
 	[[false, true, true, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -87,7 +91,7 @@ const RHODE_ISLAND_Z_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const HERO_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const HERO_BLOCK: BlockType = 
 	[[true, true, true, true],
 	[false, false, false, false],
 	[false, false, false, false],
@@ -99,19 +103,21 @@ const HERO_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const TEEWEE_BLOCK: [[bool; BLOCK_SIZE]; BLOCK_SIZE] = 
+const TEEWEE_BLOCK: BlockType = 
 	[[false, true, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
 	 [false, false, false, false]];
 
+const BLOCKS: [BlockType; 7] = [SMASHBOY_BLOCK, ORANGE_RICKY_BLOCK, BLUE_RICKY_BLOCK, CLEVELAND_Z_BLOCK, RHODE_ISLAND_Z_BLOCK, HERO_BLOCK, TEEWEE_BLOCK];
 
-const BLOCKS: [[[bool; BLOCK_SIZE]; BLOCK_SIZE]; 7] = [SMASHBOY_BLOCK, ORANGE_RICKY_BLOCK, BLUE_RICKY_BLOCK, CLEVELAND_Z_BLOCK, RHODE_ISLAND_Z_BLOCK, HERO_BLOCK, TEEWEE_BLOCK];
-
+#[derive(Copy, Clone)]
 struct Pos {
 	x: usize,
 	y: usize
 }
+
+const DEFAULT_START_POS: Pos = Pos{x: 3, y: 0};
 
 pub struct App {
 	gl: GlGraphics, // OpenGL drawing backend.
@@ -125,12 +131,12 @@ pub struct GameState {
 	current_position: Pos
 }
 
-fn can_move_block(game_state: &GameState) -> bool {
+fn can_move_down(game_state: &GameState) -> bool {
 	for i in 0..BLOCK_SIZE {
 		for j in 0..BLOCK_SIZE {
 			if game_state.current_block[BLOCK_SIZE-1-i][BLOCK_SIZE-1-j] {
 				if game_state.current_position.y + BLOCK_SIZE-1-i == STAGE_HEIGHT-1 {
-					println!("block pos: {}, actual pos: {}", game_state.current_position.y, game_state.current_position.y + BLOCK_SIZE-1-i);
+					//println!("block pos: {}, actual pos: {}", game_state.current_position.y, game_state.current_position.y + BLOCK_SIZE-1-i);
 					println!("hit bottom");
 					return false;
 				} else if game_state.stage[game_state.current_position.y + BLOCK_SIZE-i][game_state.current_position.x + BLOCK_SIZE-1-j] {
@@ -156,12 +162,43 @@ fn apply_block_to_stage(game_state: &mut GameState) {
 			}
 		}
 	}
-
-	game_state.current_position = Pos{x: 0, y: 0};
 }
 
-fn remove_full_rows(_game_state: &mut GameState) {
+fn is_full_row(game_state: &GameState, row: usize) -> bool {
+	for i in 0..STAGE_WIDTH {
+		if !game_state.stage[row][i] {
+			return false;
+		}
+	}
 
+	return true;
+}
+
+fn remove_row(game_state: &mut GameState, row: usize) {
+	for i in 0..STAGE_WIDTH {
+		game_state.stage[row][i] = false;
+	}
+}
+
+fn copy_line(game_state: &mut GameState, src: usize, dst: usize) {
+	for i in 0..STAGE_WIDTH {
+		game_state.stage[dst][i] = game_state.stage[src][i];
+	}
+}
+
+fn collapse_above(mut game_state: &mut GameState, row: usize) {
+	for i in 0..row-1 {
+		copy_line(&mut game_state, row-1-i, row-i);
+	}
+}
+
+fn remove_full_rows(mut game_state: &mut GameState) {
+	for i in 0..STAGE_HEIGHT {
+		while is_full_row(&game_state, STAGE_HEIGHT-1-i) {
+			remove_row(&mut game_state, STAGE_HEIGHT-1-i);
+			collapse_above(&mut game_state, STAGE_HEIGHT-1-i);
+		}
+	}
 }
 
 fn ganerate_new_block(game_state: &mut GameState) {
@@ -173,6 +210,67 @@ fn ganerate_new_block(game_state: &mut GameState) {
 		for j in 0..BLOCK_SIZE {
 			game_state.current_block[i][j] = BLOCKS[part][i][j];
 		}
+	}
+
+	game_state.current_position = DEFAULT_START_POS;
+}
+
+fn move_left(game_state: &mut GameState) {
+	for i in 0..BLOCK_SIZE {
+		for j in 0..BLOCK_SIZE {
+			if game_state.current_block[j][i] {
+				if game_state.current_position.x + i == 0 {
+					println!("hit left wall");
+					return;
+				} else if game_state.stage[game_state.current_position.y + j][game_state.current_position.x + i - 1] {
+					println!("cannot move left");
+					return;
+				}
+			}
+		}
+	}
+
+	game_state.current_position.x -= 1;
+}
+
+fn move_right(game_state: &mut GameState) {
+	for i in 0..BLOCK_SIZE {
+		for j in 0..BLOCK_SIZE {
+			if game_state.current_block[j][BLOCK_SIZE-1-i] {
+				if game_state.current_position.x + BLOCK_SIZE-1-i == STAGE_WIDTH-1 {
+					println!("hit right wall {}", game_state.current_position.x + BLOCK_SIZE-1 + i);
+					return;
+				} else if game_state.stage[game_state.current_position.y + j][game_state.current_position.x + BLOCK_SIZE-i] {
+					println!("cannot move right");
+					return;
+				}
+			}
+		}
+	}
+
+	game_state.current_position.x += 1;
+}
+
+fn copy_block(src: &BlockType, dst: &mut BlockType) {
+	for i in 0..BLOCK_SIZE {
+		for j in 0..BLOCK_SIZE {
+			dst[i][j] = src[i][j];
+		}
+	}
+}
+
+fn copy_horiz_to_vert(src: &BlockType, srcy: usize, dst: &mut BlockType, dstx: usize) {
+	for i in 0..BLOCK_SIZE {
+		dst[i][dstx] = src[srcy][i];
+	}
+}
+
+fn rotate_block(game_state: &mut GameState) {
+	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	copy_block(&game_state.current_block, &mut tmp);
+
+	for i in  0..BLOCK_SIZE {
+		copy_horiz_to_vert(&tmp, i, &mut game_state.current_block, i);
 	}
 }
 
@@ -225,7 +323,7 @@ impl App {
 		if self.duration > self.last_update + UPDATE_INTERVAL {
 			self.last_update = self.duration;
 			
-			if can_move_block(&game_state ) {
+			if can_move_down(&game_state ) {
 				advance_block(&mut game_state);
 			} else {
 				apply_block_to_stage(&mut game_state);
@@ -241,7 +339,7 @@ fn main() {
 	let opengl = OpenGL::V3_2;
 
 	// Create an Glutin window.
-	let mut window: Window = WindowSettings::new("spinning-square", [300, 500])
+	let mut window: Window = WindowSettings::new("Tetris 🧙🍔", [SCREEN_WIDTH, SCREEN_HEIGHT])
 		.graphics_api(opengl)
 		.exit_on_esc(true)
 		.build()
@@ -264,6 +362,20 @@ fn main() {
 
 	let mut events = Events::new(EventSettings::new());
 	while let Some(e) = events.next(&mut window) {
+		if let Some(Button::Keyboard(key)) = e.press_args() {
+			if key == Key::Left {
+				move_left(&mut game_state)
+			} else if key == Key::Right {
+				move_right(&mut game_state)
+			} else if key == Key::Space {
+				rotate_block(&mut game_state);
+			} else if key == Key::Down {
+				if can_move_down(&game_state ) {
+					advance_block(&mut game_state);
+				}
+			}
+		}
+		
 		if let Some(args) = e.render_args() {
 			app.render(&args, &game_state);
 		}
