@@ -259,24 +259,28 @@ fn copy_block(src: &BlockType, dst: &mut BlockType) {
 	}
 }
 
-fn copy_horiz_to_vert(src: &BlockType, srcy: usize, dst: &mut BlockType, dstx: usize) {
-	for i in 0..BLOCK_SIZE {
-		dst[i][dstx] = src[srcy][i];
-	}
-}
+// fn copy_horiz_to_vert(src: &BlockType, srcy: usize, dst: &mut BlockType, dstx: usize) {
+// 	for i in 0..BLOCK_SIZE {
+// 		dst[i][dstx] = src[srcy][i];
+// 	}
+// }
 
 fn rotate_block(game_state: &mut GameState) {
 	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
 	copy_block(&game_state.current_block, &mut tmp);
 
 	for i in  0..BLOCK_SIZE {
-		copy_horiz_to_vert(&tmp, i, &mut game_state.current_block, i);
+		for j in 0..BLOCK_SIZE {
+			//println!("{:?}", game_state.current_block);
+			game_state.current_block[j][i] = tmp[i][BLOCK_SIZE-1-j];
+		}
+		//copy_horiz_to_vert(&tmp, i, &mut game_state.current_block, i);
 	}
 }
 
 impl App {
 	fn render(&mut self, args: &RenderArgs, game_state: &GameState) {
-        use graphics::*;
+		use graphics::*;
 
 		let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
 		let cell_height = args.window_size[1] / (STAGE_HEIGHT as f64);
