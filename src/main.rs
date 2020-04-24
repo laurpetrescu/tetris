@@ -15,13 +15,16 @@ const STAGE_WIDTH: usize = 10;
 const STAGE_HEIGHT: usize = 20;
 const UPDATE_INTERVAL: f64 = 0.5;
 const BLOCK_SIZE: usize = 4;
+//const BG_OFFSET: f64 = 5.0;
 
 const SCREEN_WIDTH: u32 = 250;
 const SCREEN_HEIGHT: u32 = 500;
 
 const BG_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
-const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+const BG_FILL_COLOR: [f32; 4] = [0.4, 0.4, 0.4, 0.1];
+const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
+const BORDER_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
 type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
 
@@ -259,23 +262,36 @@ fn copy_block(src: &BlockType, dst: &mut BlockType) {
 	}
 }
 
-// fn copy_horiz_to_vert(src: &BlockType, srcy: usize, dst: &mut BlockType, dstx: usize) {
-// 	for i in 0..BLOCK_SIZE {
-// 		dst[i][dstx] = src[srcy][i];
-// 	}
-// }
-
-fn rotate_block(game_state: &mut GameState) {
+fn rotate_block(block: &mut BlockType) {
 	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	copy_block(&game_state.current_block, &mut tmp);
+	copy_block(&block, &mut tmp);
 
 	for i in  0..BLOCK_SIZE {
 		for j in 0..BLOCK_SIZE {
-			//println!("{:?}", game_state.current_block);
-			game_state.current_block[j][i] = tmp[i][BLOCK_SIZE-1-j];
+			block[j][i] = tmp[i][BLOCK_SIZE-1-j];
 		}
-		//copy_horiz_to_vert(&tmp, i, &mut game_state.current_block, i);
 	}
+}
+
+fn can_rotate(game_state: &GameState) -> bool {
+	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	copy_block(&game_state.current_block, &mut tmp);
+
+	rotate_block(&mut tmp);
+
+	for i in 0..BLOCK_SIZE {
+		for j in 0..BLOCK_SIZE {
+			if tmp[i][j] {
+				let x = game_state.current_position.x + j;
+				let y = game_state.current_position.y + i;
+				if x > STAGE_WIDTH-1 || y > STAGE_HEIGHT-1 || game_state.stage[i][j] {
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 impl App {
@@ -293,7 +309,11 @@ impl App {
 				for j in 0..STAGE_WIDTH {
 					let part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
 					let border = Rectangle::new_border(GRID_COLOR, 1.0);
-					border.draw(part, &draw_state::DrawState::default(), c.transform, gl)
+					border.draw(part, &draw_state::DrawState::default(), c.transform, gl);
+
+					let offset = cell_width / 4.0;
+					let small_part = rectangle::square(j as f64 * cell_width + offset, i as f64 * cell_height + offset, cell_width - offset);
+					rectangle(BG_FILL_COLOR, small_part, c.transform, gl);
 				}
 			}
 			
@@ -313,8 +333,14 @@ impl App {
 					if game_state.current_block[i][j] {
 						let posx = (j + game_state.current_position.x) as f64 * cell_width;
 						let posy = (i + game_state.current_position.y) as f64 * cell_height;
-						let part = rectangle::square(posx, posy, cell_width);
+						let offset = cell_width / 4.0;
+						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset);
 						rectangle(FILL_COLOR, part, c.transform, gl);
+
+						let border_part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
+						border.draw(border_part, &draw_state::DrawState::default(), c.transform, gl);
+
 					}
 				}
 			}
@@ -372,7 +398,9 @@ fn main() {
 			} else if key == Key::Right {
 				move_right(&mut game_state)
 			} else if key == Key::Space {
-				rotate_block(&mut game_state);
+				if can_rotate(&game_state) {
+					rotate_block(&mut game_state.current_block);
+				}
 			} else if key == Key::Down {
 				if can_move_down(&game_state ) {
 					advance_block(&mut game_state);
