@@ -264,11 +264,53 @@ fn copy_block(src: &BlockType, dst: &mut BlockType) {
 
 fn rotate_block(block: &mut BlockType) {
 	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	copy_block(&block, &mut tmp);
+	//let mut tmp1: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	copy_block(block, &mut tmp);
 
+	// move horizontal line to vertical
 	for i in  0..BLOCK_SIZE {
 		for j in 0..BLOCK_SIZE {
 			block[j][i] = tmp[i][BLOCK_SIZE-1-j];
+		}
+	}
+
+	// shift to top left
+	copy_block(&block, &mut tmp);
+	let mut empty_rows = 0;
+	let mut empty_cols = 0;
+	for i in  0..BLOCK_SIZE {
+		let mut is_empty = true;
+		for j in 0..BLOCK_SIZE {
+			if tmp[i][j] {
+				is_empty = false;
+				break;
+			}
+		}
+
+		if is_empty {
+			empty_rows += 1;
+		}
+	}
+
+	for i in  0..BLOCK_SIZE {
+		let mut is_empty = true;
+		for j in 0..BLOCK_SIZE {
+			if tmp[j][i] {
+				is_empty = false;
+				break;
+			}
+		}
+
+		if is_empty {
+			empty_cols += 1;
+		}
+	}
+
+	let tmp2: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	copy_block(&tmp2, &mut block);
+	for i in  0..BLOCK_SIZE-empty_rows {
+		for j in 0..BLOCK_SIZE-empty_cols {
+			block[i][j] = tmp[i+empty_rows][j+empty_cols];
 		}
 	}
 }
@@ -311,9 +353,10 @@ impl App {
 					let border = Rectangle::new_border(GRID_COLOR, 1.0);
 					border.draw(part, &draw_state::DrawState::default(), c.transform, gl);
 
-					let offset = cell_width / 4.0;
-					let small_part = rectangle::square(j as f64 * cell_width + offset, i as f64 * cell_height + offset, cell_width - offset);
+					let offset = cell_width / 6.0;
+					let small_part = rectangle::square(j as f64 * cell_width + offset, i as f64 * cell_height + offset, cell_width - offset*2.0);
 					rectangle(BG_FILL_COLOR, small_part, c.transform, gl);
+					
 				}
 			}
 			
@@ -321,8 +364,17 @@ impl App {
 			for i in 0..STAGE_HEIGHT {
 				for j in 0..STAGE_WIDTH {
 					if game_state.stage[i][j] {
-						let part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+						// fill
+						let posx = j as f64 * cell_width;
+						let posy = i as f64 * cell_height;
+						let offset = cell_width / 6.0;
+						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset*2.0);
 						rectangle(FILL_COLOR, part, c.transform, gl);
+
+						// border
+						let border_part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+						let border = Rectangle::new_border(FILL_COLOR, 1.0);
+						border.draw(border_part, &draw_state::DrawState::default(), c.transform, gl);
 					}
 				}
 			}
@@ -331,13 +383,15 @@ impl App {
 			for i in 0..BLOCK_SIZE {
 				for j in 0..BLOCK_SIZE {
 					if game_state.current_block[i][j] {
+						// fill
 						let posx = (j + game_state.current_position.x) as f64 * cell_width;
 						let posy = (i + game_state.current_position.y) as f64 * cell_height;
-						let offset = cell_width / 4.0;
-						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset);
+						let offset = cell_width / 6.0;
+						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset*2.0);
 						rectangle(FILL_COLOR, part, c.transform, gl);
 
-						let border_part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+						// border
+						let border_part = rectangle::square(posx, posy, cell_width);
 						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
 						border.draw(border_part, &draw_state::DrawState::default(), c.transform, gl);
 
