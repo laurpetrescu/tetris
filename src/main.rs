@@ -26,7 +26,18 @@ const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const BORDER_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
-type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
+//type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
+
+#[derive(Copy, Clone)]
+struct Block {
+	data: [[bool; BLOCK_SIZE]; BLOCK_SIZE]
+}
+
+impl Block {
+	pub fn new() -> Block {
+		Block{data: [[false; BLOCK_SIZE]; BLOCK_SIZE]}
+	}
+}
 
 /*
 🍔🍔🧙🧙
@@ -34,7 +45,7 @@ type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const SMASHBOY_BLOCK: BlockType = 
+const SMASHBOY_BLOCK: Block = 
 	[[true, true, false, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -46,7 +57,7 @@ const SMASHBOY_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const ORANGE_RICKY_BLOCK: BlockType = 
+const ORANGE_RICKY_BLOCK: Block = 
 	[[false, false, true, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -58,7 +69,7 @@ const ORANGE_RICKY_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const BLUE_RICKY_BLOCK: BlockType = 
+const BLUE_RICKY_BLOCK: Block = 
 	[[true, false, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -70,7 +81,7 @@ const BLUE_RICKY_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const CLEVELAND_Z_BLOCK: BlockType = 
+const CLEVELAND_Z_BLOCK: Block = 
 	[[true, true, false, false],
 	 [false, true, true, false],
 	 [false, false, false, false],
@@ -82,7 +93,7 @@ const CLEVELAND_Z_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const RHODE_ISLAND_Z_BLOCK: BlockType = 
+const RHODE_ISLAND_Z_BLOCK: Block = 
 	[[false, true, true, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -94,7 +105,7 @@ const RHODE_ISLAND_Z_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const HERO_BLOCK: BlockType = 
+const HERO_BLOCK: Block = 
 	[[true, true, true, true],
 	[false, false, false, false],
 	[false, false, false, false],
@@ -106,13 +117,16 @@ const HERO_BLOCK: BlockType =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const TEEWEE_BLOCK: BlockType = 
+const TEEWEE_BLOCK: Block = 
 	[[false, true, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
 	 [false, false, false, false]];
 
-const BLOCKS: [BlockType; 7] = [SMASHBOY_BLOCK, ORANGE_RICKY_BLOCK, BLUE_RICKY_BLOCK, CLEVELAND_Z_BLOCK, RHODE_ISLAND_Z_BLOCK, HERO_BLOCK, TEEWEE_BLOCK];
+const BLOCKS: [Block; 7] =
+ [SMASHBOY_BLOCK, ORANGE_RICKY_BLOCK,
+ BLUE_RICKY_BLOCK, CLEVELAND_Z_BLOCK, 
+ RHODE_ISLAND_Z_BLOCK, HERO_BLOCK, TEEWEE_BLOCK];
 
 #[derive(Copy, Clone)]
 struct Pos {
@@ -139,10 +153,13 @@ fn can_move_down(game_state: &GameState) -> bool {
 		for j in 0..BLOCK_SIZE {
 			if game_state.current_block[BLOCK_SIZE-1-i][BLOCK_SIZE-1-j] {
 				if game_state.current_position.y + BLOCK_SIZE-1-i == STAGE_HEIGHT-1 {
-					//println!("block pos: {}, actual pos: {}", game_state.current_position.y, game_state.current_position.y + BLOCK_SIZE-1-i);
+					//println!("block pos: {}, actual pos: {}", 
+					//game_state.current_position.y, game_state.current_position.y
+					// + BLOCK_SIZE-1-i);
 					println!("hit bottom");
 					return false;
-				} else if game_state.stage[game_state.current_position.y + BLOCK_SIZE-i][game_state.current_position.x + BLOCK_SIZE-1-j] {
+				} else if game_state.stage[game_state.current_position.y + BLOCK_SIZE-i]
+						[game_state.current_position.x + BLOCK_SIZE-1-j] {
 					println!("hit block");
 					return false;
 				}
@@ -161,7 +178,8 @@ fn apply_block_to_stage(game_state: &mut GameState) {
 	for i in 0..BLOCK_SIZE {
 		for j in 0..BLOCK_SIZE {
 			if game_state.current_block[i][j] {
-				game_state.stage[game_state.current_position.y + i][game_state.current_position.x + j] = true;
+				game_state.stage[game_state.current_position.y + i]
+					[game_state.current_position.x + j] = true;
 			}
 		}
 	}
@@ -225,7 +243,8 @@ fn move_left(game_state: &mut GameState) {
 				if game_state.current_position.x + i == 0 {
 					println!("hit left wall");
 					return;
-				} else if game_state.stage[game_state.current_position.y + j][game_state.current_position.x + i - 1] {
+				} else if game_state.stage[game_state.current_position.y + j]
+							[game_state.current_position.x + i - 1] {
 					println!("cannot move left");
 					return;
 				}
@@ -241,9 +260,11 @@ fn move_right(game_state: &mut GameState) {
 		for j in 0..BLOCK_SIZE {
 			if game_state.current_block[j][BLOCK_SIZE-1-i] {
 				if game_state.current_position.x + BLOCK_SIZE-1-i == STAGE_WIDTH-1 {
-					println!("hit right wall {}", game_state.current_position.x + BLOCK_SIZE-1 + i);
+					println!("hit right wall {}",
+					 game_state.current_position.x + BLOCK_SIZE-1 + i);
 					return;
-				} else if game_state.stage[game_state.current_position.y + j][game_state.current_position.x + BLOCK_SIZE-i] {
+				} else if game_state.stage[game_state.current_position.y + j]
+						[game_state.current_position.x + BLOCK_SIZE-i] {
 					println!("cannot move right");
 					return;
 				}
@@ -254,18 +275,19 @@ fn move_right(game_state: &mut GameState) {
 	game_state.current_position.x += 1;
 }
 
-fn copy_block(src: &BlockType, dst: &mut BlockType) {
-	for i in 0..BLOCK_SIZE {
-		for j in 0..BLOCK_SIZE {
-			dst[i][j] = src[i][j];
-		}
-	}
-}
+// fn copy_block(src: &BlockType, dst: &mut BlockType) {
+// 	for i in 0..BLOCK_SIZE {
+// 		for j in 0..BLOCK_SIZE {
+// 			dst[i][j] = src[i][j];
+// 		}
+// 	}
+// }
 
-fn rotate_block(block: &mut BlockType) {
-	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+fn rotate_block(block: &mut Block) {
+	let mut tmp = Block::new();
 	//let mut tmp1: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	copy_block(block, &mut tmp);
+	//copy_block(block, &mut tmp);
+	tmp = block.Clone();
 
 	// move horizontal line to vertical
 	for i in  0..BLOCK_SIZE {
@@ -306,7 +328,7 @@ fn rotate_block(block: &mut BlockType) {
 		}
 	}
 
-	let tmp2: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	let tmp2 = Block::new();
 	copy_block(&tmp2, &mut block);
 	for i in  0..BLOCK_SIZE-empty_rows {
 		for j in 0..BLOCK_SIZE-empty_cols {
@@ -316,7 +338,7 @@ fn rotate_block(block: &mut BlockType) {
 }
 
 fn can_rotate(game_state: &GameState) -> bool {
-	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	let mut tmp = Block::new();
 	copy_block(&game_state.current_block, &mut tmp);
 
 	rotate_block(&mut tmp);
@@ -349,12 +371,14 @@ impl App {
 			// draw grid
 			for i in 0..STAGE_HEIGHT {
 				for j in 0..STAGE_WIDTH {
-					let part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+					let part = rectangle::square(j as f64 * cell_width,
+						 i as f64 * cell_height, cell_width);
 					let border = Rectangle::new_border(GRID_COLOR, 1.0);
 					border.draw(part, &draw_state::DrawState::default(), c.transform, gl);
 
 					let offset = cell_width / 6.0;
-					let small_part = rectangle::square(j as f64 * cell_width + offset, i as f64 * cell_height + offset, cell_width - offset*2.0);
+					let small_part = rectangle::square(j as f64 * cell_width + offset,
+						 i as f64 * cell_height + offset, cell_width - offset*2.0);
 					rectangle(BG_FILL_COLOR, small_part, c.transform, gl);
 					
 				}
@@ -368,13 +392,16 @@ impl App {
 						let posx = j as f64 * cell_width;
 						let posy = i as f64 * cell_height;
 						let offset = cell_width / 6.0;
-						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset*2.0);
+						let part = rectangle::square(posx + offset, posy + offset,
+							 cell_width - offset*2.0);
 						rectangle(FILL_COLOR, part, c.transform, gl);
 
 						// border
-						let border_part = rectangle::square(j as f64 * cell_width, i as f64 * cell_height, cell_width);
+						let border_part = rectangle::square(j as f64 * cell_width,
+							 i as f64 * cell_height, cell_width);
 						let border = Rectangle::new_border(FILL_COLOR, 1.0);
-						border.draw(border_part, &draw_state::DrawState::default(), c.transform, gl);
+						border.draw(border_part, &draw_state::DrawState::default(),
+						 c.transform, gl);
 					}
 				}
 			}
@@ -387,13 +414,15 @@ impl App {
 						let posx = (j + game_state.current_position.x) as f64 * cell_width;
 						let posy = (i + game_state.current_position.y) as f64 * cell_height;
 						let offset = cell_width / 6.0;
-						let part = rectangle::square(posx + offset, posy + offset, cell_width - offset*2.0);
+						let part = rectangle::square(posx + offset, posy + offset,
+							 cell_width - offset*2.0);
 						rectangle(FILL_COLOR, part, c.transform, gl);
 
 						// border
 						let border_part = rectangle::square(posx, posy, cell_width);
 						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
-						border.draw(border_part, &draw_state::DrawState::default(), c.transform, gl);
+						border.draw(border_part, &draw_state::DrawState::default(),
+						 c.transform, gl);
 
 					}
 				}
