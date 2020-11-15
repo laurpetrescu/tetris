@@ -26,18 +26,18 @@ const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const BORDER_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
-//type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
+type BlockType = [[bool; BLOCK_SIZE]; BLOCK_SIZE];
 
-#[derive(Copy, Clone)]
-struct Block {
-	data: [[bool; BLOCK_SIZE]; BLOCK_SIZE]
-}
+// #[derive(Copy, Clone)]
+// struct Block {
+// 	data: [[bool; BLOCK_SIZE]; BLOCK_SIZE]
+// }
 
-impl Block {
-	pub fn new() -> Block {
-		Block{data: [[false; BLOCK_SIZE]; BLOCK_SIZE]}
-	}
-}
+// impl Block {
+// 	pub fn new() -> Block {
+// 		Block{data: [[false; BLOCK_SIZE]; BLOCK_SIZE]}
+// 	}
+// }
 
 /*
 🍔🍔🧙🧙
@@ -45,7 +45,7 @@ impl Block {
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const SMASHBOY_BLOCK: Block = 
+const SMASHBOY_BLOCK: BlockType =
 	[[true, true, false, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -57,7 +57,7 @@ const SMASHBOY_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const ORANGE_RICKY_BLOCK: Block = 
+const ORANGE_RICKY_BLOCK: BlockType = 
 	[[false, false, true, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -69,7 +69,7 @@ const ORANGE_RICKY_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const BLUE_RICKY_BLOCK: Block = 
+const BLUE_RICKY_BLOCK: BlockType = 
 	[[true, false, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
@@ -81,7 +81,7 @@ const BLUE_RICKY_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const CLEVELAND_Z_BLOCK: Block = 
+const CLEVELAND_Z_BLOCK: BlockType = 
 	[[true, true, false, false],
 	 [false, true, true, false],
 	 [false, false, false, false],
@@ -93,7 +93,7 @@ const CLEVELAND_Z_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const RHODE_ISLAND_Z_BLOCK: Block = 
+const RHODE_ISLAND_Z_BLOCK: BlockType = 
 	[[false, true, true, false],
 	 [true, true, false, false],
 	 [false, false, false, false],
@@ -105,7 +105,7 @@ const RHODE_ISLAND_Z_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const HERO_BLOCK: Block = 
+const HERO_BLOCK: BlockType = 
 	[[true, true, true, true],
 	[false, false, false, false],
 	[false, false, false, false],
@@ -117,13 +117,13 @@ const HERO_BLOCK: Block =
 🧙🧙🧙🧙
 🧙🧙🧙🧙
 */
-const TEEWEE_BLOCK: Block = 
+const TEEWEE_BLOCK: BlockType = 
 	[[false, true, false, false],
 	 [true, true, true, false],
 	 [false, false, false, false],
 	 [false, false, false, false]];
 
-const BLOCKS: [Block; 7] =
+const BLOCKS: [BlockType; 7] =
  [SMASHBOY_BLOCK, ORANGE_RICKY_BLOCK,
  BLUE_RICKY_BLOCK, CLEVELAND_Z_BLOCK, 
  RHODE_ISLAND_Z_BLOCK, HERO_BLOCK, TEEWEE_BLOCK];
@@ -275,19 +275,19 @@ fn move_right(game_state: &mut GameState) {
 	game_state.current_position.x += 1;
 }
 
-// fn copy_block(src: &BlockType, dst: &mut BlockType) {
-// 	for i in 0..BLOCK_SIZE {
-// 		for j in 0..BLOCK_SIZE {
-// 			dst[i][j] = src[i][j];
-// 		}
-// 	}
-// }
+fn copy_block(src: &BlockType, dst: &mut BlockType) {
+	for i in 0..BLOCK_SIZE {
+		for j in 0..BLOCK_SIZE {
+			dst[i][j] = src[i][j];
+		}
+	}
+}
 
-fn rotate_block(block: &mut Block) {
-	let mut tmp = Block::new();
-	//let mut tmp1: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	//copy_block(block, &mut tmp);
-	tmp = block.Clone();
+fn rotate_block(block: &mut BlockType) {
+	// let mut tmp = Block::new();
+	let mut tmp: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+	copy_block(&block, &mut tmp);
+	// tmp = block.Clone();
 
 	// move horizontal line to vertical
 	for i in  0..BLOCK_SIZE {
@@ -297,7 +297,8 @@ fn rotate_block(block: &mut Block) {
 	}
 
 	// shift to top left
-	copy_block(&block, &mut tmp);
+  copy_block(&block, &mut tmp);
+  // tmp = block.Clone();
 	let mut empty_rows = 0;
 	let mut empty_cols = 0;
 	for i in  0..BLOCK_SIZE {
@@ -328,8 +329,9 @@ fn rotate_block(block: &mut Block) {
 		}
 	}
 
-	let tmp2 = Block::new();
-	copy_block(&tmp2, &mut block);
+	// let tmp2: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+  // copy_block(&tmp2, &mut block);
+  // block = tmp2.Clone();
 	for i in  0..BLOCK_SIZE-empty_rows {
 		for j in 0..BLOCK_SIZE-empty_cols {
 			block[i][j] = tmp[i+empty_rows][j+empty_cols];
@@ -338,8 +340,9 @@ fn rotate_block(block: &mut Block) {
 }
 
 fn can_rotate(game_state: &GameState) -> bool {
-	let mut tmp = Block::new();
-	copy_block(&game_state.current_block, &mut tmp);
+	let mut tmp : BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
+  copy_block(&game_state.current_block, &mut tmp);
+  // tmp = game_state.current_block.Clone();
 
 	rotate_block(&mut tmp);
 
