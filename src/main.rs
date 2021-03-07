@@ -3,9 +3,11 @@ extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 extern crate rand;
+extern crate find_folder;
+
 
 use glutin_window::GlutinWindow as Window;
-use opengl_graphics::{GlGraphics, OpenGL};
+use opengl_graphics::{GlGraphics, OpenGL, GlyphCache, TextureSettings};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::*;
 use piston::window::WindowSettings;
@@ -17,17 +19,18 @@ const STAGE_WIDTH: usize = 10;
 const STAGE_HEIGHT: usize = 20;
 const UPDATE_INTERVAL: f64 = 0.5;
 const BLOCK_SIZE: usize = 4;
-const SCREEN_WIDTH: u32 = 500;
+const SCREEN_WIDTH: u32 = 400;
 const SCREEN_HEIGHT: u32 = 500;
 const RENDER_STAGE_WIDTH: f64 = 250.0;
 const RENDER_STAGE_HEIGHT: f64 = 500.0;
 
 
-const BG_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
-const BG_FILL_COLOR: [f32; 4] = [0.4, 0.4, 0.4, 0.1];
+const BG_COLOR: [f32; 4] = [0.47, 0.47, 0.47, 1.0];
+const BG_FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
-const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
-const BORDER_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+const FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+const BORDER_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+const TEXT_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
 const MAX_SCORE: i64 = 1000;
 const ROW_SCORE: i64 = 100;
@@ -163,6 +166,8 @@ pub struct GameState {
 	current_block: BlockType,
 	current_position: Pos,
 	score: i64,
+	level: i64,
+	lines: i64,
 	status: Status,
 }
 
@@ -173,6 +178,8 @@ impl GameState {
 			current_block: ZERO_BLOCK.clone(),
 			current_position: Pos{x: 0, y: 0},
 			score: 0,
+			level: 1,
+			lines: 0,
 			status: Status::Running
 		}
 	}
@@ -261,17 +268,19 @@ fn collapse_above(mut game_state: &mut GameState, row: usize) {
 }
 
 fn remove_full_rows(mut game_state: &mut GameState) {
-	let mut bonus = 0;
+	let mut lines = 0;
 	for y in 0..STAGE_HEIGHT {
 		while is_full_row(&game_state, STAGE_HEIGHT-1-y) {
 			remove_row(&mut game_state, STAGE_HEIGHT-1-y);
 			collapse_above(&mut game_state, STAGE_HEIGHT-1-y);
 			game_state.inc_score(ROW_SCORE);
-			bonus += 1;
+			lines += 1;
 		}
 	}
 
-	if bonus > 1 {
+	game_state.lines += lines;
+
+	if lines > 1 {
 		game_state.inc_score(BONUS_SCORE);
 	}
 }
@@ -416,7 +425,7 @@ fn can_rotate(game_state: &GameState) -> bool {
 
 
 impl App {
-	fn render(&mut self, args: &RenderArgs, game_state: &GameState) {
+	fn render(&mut self, args: &RenderArgs, game_state: &GameState, glyph_cache: &mut GlyphCache) {
 		use graphics::*;
 
 		// let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
@@ -424,7 +433,7 @@ impl App {
 		let cell_width = RENDER_STAGE_WIDTH / (STAGE_WIDTH as f64);
 		let cell_height = RENDER_STAGE_HEIGHT / (STAGE_HEIGHT as f64);
 
-		self.gl.draw(args.viewport(), |c, gl| {
+		self.gl.draw(args.viewport(), |context, gl| {
 			clear(BG_COLOR, gl); // clear screen
 
 			// draw grid
@@ -433,15 +442,24 @@ impl App {
 					let part = rectangle::square(x as f64 * cell_width,
 						 y as f64 * cell_height, cell_width);
 					let border = Rectangle::new_border(GRID_COLOR, 1.0);
-					border.draw(part, &draw_state::DrawState::default(), c.transform, gl);
+					border.draw(part, &draw_state::DrawState::default(), context.transform, gl);
 
 					let offset = cell_width / 6.0;
 					let small_part = rectangle::square(x as f64 * cell_width + offset,
 						 y as f64 * cell_height + offset, cell_width - offset*2.0);
-					rectangle(BG_FILL_COLOR, small_part, c.transform, gl);
+					rectangle(BG_FILL_COLOR, small_part, context.transform, gl);
 					
 				}
 			}
+
+			let grid_border_part = rectangle::rectangle_by_corners(
+				0.0, 0.0, RENDER_STAGE_WIDTH, RENDER_STAGE_HEIGHT);
+			let border = Rectangle::new_border(GRID_COLOR, 1.0);
+			border.draw(grid_border_part, 
+				&draw_state::DrawState::default(),
+				context.transform,
+				gl);
+
 			
 			// draw stage
 			for x in 0..STAGE_WIDTH {
@@ -453,14 +471,14 @@ impl App {
 						let offset = cell_width / 6.0;
 						let part = rectangle::square(posx + offset, posy + offset,
 							 cell_width - offset * 2.0);
-						rectangle(FILL_COLOR, part, c.transform, gl);
+						rectangle(FILL_COLOR, part, context.transform, gl);
 
 						// border
 						let border_part = rectangle::square(x as f64 * cell_width,
 							 y as f64 * cell_height, cell_width);
 						let border = Rectangle::new_border(FILL_COLOR, 1.0);
 						border.draw(border_part, &draw_state::DrawState::default(),
-						 c.transform, gl);
+						 context.transform, gl);
 					}
 				}
 			}
@@ -475,20 +493,53 @@ impl App {
 						let offset = cell_width / 6.0;
 						let part = rectangle::square(posx + offset, posy + offset,
 							 cell_width - offset*2.0);
-						rectangle(FILL_COLOR, part, c.transform, gl);
+						rectangle(FILL_COLOR, part, context.transform, gl);
 
 						// border
 						let border_part = rectangle::square(posx, posy, cell_width);
 						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
 						border.draw(border_part, &draw_state::DrawState::default(),
-						 c.transform, gl);
+						 context.transform, gl);
 
 					}
 				}
 			}
 
-			// status
+			// text
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("Score: {}", game_state.score).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(260.0, 50.0),
+					gl).unwrap();
+
 			
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("Level: {}", game_state.level).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(260.0, 70.0),
+					gl).unwrap();
+
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("Lines: {}", game_state.lines).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(260.0, 90.0),
+					gl).unwrap();
+
+			let end_str = match game_state.status {
+				Status::LevelDone => "LEVEL UP",
+				Status::GameOver => "GAME OVER",
+				_ => ""
+			};
+
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("{}", end_str).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(270.0, 250.0),
+					gl).unwrap();
 		});
 	}
 
@@ -540,6 +591,20 @@ fn main() {
 		last_update: 0.0
 	};
 
+	// font
+	let assets = find_folder::Search::ParentsThenKids(3, 3)
+		.for_folder("assets/fonts").unwrap();
+	let ref font = assets.join("font.ttf");
+
+	if !font.exists() {
+		panic!("Missing resource: assets/fonts/font.ttf");
+	}
+
+	let mut glyph_cache = GlyphCache::new(
+		font,
+		(),
+		TextureSettings::new()).unwrap();
+
 	generate_new_block(&mut game_state);
 
 	let mut events = Events::new(EventSettings::new());
@@ -563,7 +628,7 @@ fn main() {
 		}
 		
 		if let Some(args) = e.render_args() {
-			app.render(&args, &game_state);
+			app.render(&args, &game_state, &mut glyph_cache);
 		}
 
 		match game_state.status {
