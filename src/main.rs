@@ -4,7 +4,7 @@ extern crate opengl_graphics;
 extern crate piston;
 extern crate rand;
 extern crate find_folder;
-
+extern crate preferences;
 
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL, GlyphCache, TextureSettings};
@@ -14,25 +14,30 @@ use piston::window::WindowSettings;
 use rand::Rng;
 use simple_matrix::Matrix;
 use lazy_static::lazy_static;
+use preferences::{PreferencesMap, Preferences};
+use std::fs::File;
+
+const HIGH_SCORE_PREF: &str = "highscore";
 
 const STAGE_WIDTH: usize = 10;
 const STAGE_HEIGHT: usize = 20;
 const UPDATE_INTERVAL: f64 = 0.5;
+const UPDATE_STEP: f64 = 0.05;
+const UPDATE_LIMIT: f64 = 0.2;
 const BLOCK_SIZE: usize = 4;
 const SCREEN_WIDTH: u32 = 400;
 const SCREEN_HEIGHT: u32 = 500;
 const RENDER_STAGE_WIDTH: f64 = 250.0;
 const RENDER_STAGE_HEIGHT: f64 = 500.0;
 
-
-const BG_COLOR: [f32; 4] = [0.47, 0.47, 0.47, 1.0];
+const BG_COLOR: [f32; 4] = [0.47, 0.54, 0.52, 1.0];
 const BG_FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const BORDER_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const TEXT_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 
-const MAX_SCORE: i64 = 1000;
+const LEVEL_UP_SCORE: i64 = 1000;
 const ROW_SCORE: i64 = 100;
 const BONUS_SCORE: i64 = 50;
 
@@ -155,7 +160,7 @@ pub struct App {
 	
 }
 
-enum Status {
+enum State {
 	Running,
 	LevelDone,
 	GameOver
@@ -164,11 +169,14 @@ enum Status {
 pub struct GameState {
 	stage: StageType,
 	current_block: BlockType,
+	next_block: BlockType,
 	current_position: Pos,
 	score: i64,
+	high_score: i64,
 	level: i64,
 	lines: i64,
-	status: Status,
+	status: State,
+	update_interval: f64,
 }
 
 impl GameState {
@@ -176,23 +184,30 @@ impl GameState {
 		GameState {
 			stage: ZERO_STAGE.clone(),
 			current_block: ZERO_BLOCK.clone(),
+			next_block: ZERO_BLOCK.clone(),
 			current_position: Pos{x: 0, y: 0},
 			score: 0,
+			high_score: 0,
 			level: 1,
 			lines: 0,
-			status: Status::Running
+			status: State::Running,
+			update_interval: UPDATE_INTERVAL
 		}
 	}
 
-	pub fn get_stage(&self, x: usize, y: usize) -> bool {
+	fn get_stage(&self, x: usize, y: usize) -> bool {
 		*self.stage.get(x, y).unwrap()
 	}
 
-	pub fn get_current_block(&self, x: usize, y: usize) -> bool {
+	fn get_current_block(&self, x: usize, y: usize) -> bool {
 		*self.current_block.get(x, y).unwrap()
 	}
 
-	pub fn set_stage(&mut self, x: usize, y: usize, val: bool) {
+	fn get_next_block(&self, x: usize, y: usize) -> bool {
+		*self.next_block.get(x, y).unwrap()
+	}
+
+	fn set_stage(&mut self, x: usize, y: usize, val: bool) {
 		self.stage.set(x, y, val);
 	}
 
@@ -289,7 +304,8 @@ fn generate_new_block(game_state: &mut GameState) {
 	let mut rng = rand::thread_rng();
 	let part = rng.gen_range(0, BLOCKS.len());
 	
-	game_state.current_block = BlockType::from_iter(BLOCK_SIZE, BLOCK_SIZE,
+	game_state.current_block = game_state.next_block.clone();
+	game_state.next_block = BlockType::from_iter(BLOCK_SIZE, BLOCK_SIZE,
 		BLOCKS[part].clone());
 
 	game_state.current_position = DEFAULT_START_POS;
@@ -451,15 +467,6 @@ impl App {
 					
 				}
 			}
-
-			let grid_border_part = rectangle::rectangle_by_corners(
-				0.0, 0.0, RENDER_STAGE_WIDTH, RENDER_STAGE_HEIGHT);
-			let border = Rectangle::new_border(GRID_COLOR, 1.0);
-			border.draw(grid_border_part, 
-				&draw_state::DrawState::default(),
-				context.transform,
-				gl);
-
 			
 			// draw stage
 			for x in 0..STAGE_WIDTH {
@@ -482,6 +489,14 @@ impl App {
 					}
 				}
 			}
+
+			let grid_border_part = rectangle::rectangle_by_corners(
+				0.0, 0.0, RENDER_STAGE_WIDTH, RENDER_STAGE_HEIGHT);
+			let border = Rectangle::new_border(FILL_COLOR, 1.0);
+			border.draw(grid_border_part, 
+				&draw_state::DrawState::default(),
+				context.transform,
+				gl);
 
 			// draw current block
 			for x in 0..BLOCK_SIZE {
@@ -528,9 +543,57 @@ impl App {
 					context.transform.trans(260.0, 90.0),
 					gl).unwrap();
 
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw("Next:",
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(260.0, 130.0),
+					gl).unwrap();
+				
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw("High score:",
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(260.0, 400.0),
+					gl).unwrap();
+					
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("{}", game_state.high_score).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(270.0, 420.0),
+					gl).unwrap();
+					
+			// draw next block
+			for x in 0..BLOCK_SIZE {
+				for y in 0..BLOCK_SIZE {
+					if game_state.get_next_block(x, y) {
+						// fill
+						let posx = x as f64 * cell_width;
+						let posy = y as f64 * cell_height;
+						let offset = cell_width / 6.0;
+						let part = rectangle::square(posx + offset, posy + offset,
+							 cell_width - offset*2.0);
+						rectangle(FILL_COLOR,
+							part,
+							context.transform.trans(270.0, 150.0),
+							gl);
+
+						// border
+						let border_part = rectangle::square(posx, posy, cell_width);
+						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
+						border.draw(border_part, 
+							&draw_state::DrawState::default(),
+							context.transform.trans(270.0, 150.0),
+						 	gl);
+
+					}
+				}
+			}
+
 			let end_str = match game_state.status {
-				Status::LevelDone => "LEVEL UP",
-				Status::GameOver => "GAME OVER",
+				State::LevelDone => "LEVEL UP",
+				State::GameOver => "GAME OVER",
 				_ => ""
 			};
 
@@ -538,7 +601,7 @@ impl App {
 				.draw(format!("{}", end_str).as_str(),
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(270.0, 250.0),
+					context.transform.trans(270.0, 270.0),
 					gl).unwrap();
 		});
 	}
@@ -546,7 +609,7 @@ impl App {
 	fn update(&mut self, args: &UpdateArgs, mut game_state: &mut GameState) {
 		self.duration += args.dt;
 		
-		if self.duration > self.last_update + UPDATE_INTERVAL {
+		if self.duration > self.last_update + game_state.update_interval {
 			self.last_update = self.duration;
 			
 			if can_move_down(&game_state ) {
@@ -555,15 +618,13 @@ impl App {
 				apply_block_to_stage(&mut game_state);
 				remove_full_rows(&mut game_state);
 
-				if game_state.score >= MAX_SCORE {
-					game_state.status = Status::LevelDone;
-					println!("LEVEL DONE!");
+				if game_state.score >= LEVEL_UP_SCORE * game_state.level {
+					game_state.status = State::LevelDone;
 				}
 
 				generate_new_block(&mut game_state);
 				if check_collision(&game_state) {
-					game_state.status = Status::GameOver;
-					println!("GAME OVER!");
+					game_state.status = State::GameOver;
 				}
 			}
 		}
@@ -582,7 +643,7 @@ fn main() {
 		.build()
 		.unwrap();
 
-	let mut game_state = GameState::new();
+	let mut game = GameState::new();
 
 	// Create a new game and run it.
 	let mut app = App {
@@ -593,11 +654,11 @@ fn main() {
 
 	// font
 	let assets = find_folder::Search::ParentsThenKids(3, 3)
-		.for_folder("assets/fonts").unwrap();
+		.for_folder("data").unwrap();
 	let ref font = assets.join("font.ttf");
 
 	if !font.exists() {
-		panic!("Missing resource: assets/fonts/font.ttf");
+		panic!("Missing resource: data/font.ttf");
 	}
 
 	let mut glyph_cache = GlyphCache::new(
@@ -605,22 +666,40 @@ fn main() {
 		(),
 		TextureSettings::new()).unwrap();
 
-	generate_new_block(&mut game_state);
+	// preferences - high score
+	let pref_path = "data/preferences.cfg";
+	let mut prefs: PreferencesMap<String> = PreferencesMap::new();
+	
+	let file_result = File::open(pref_path);
+	if file_result.is_ok() {
+		let mut file = file_result.unwrap();
+		let load_result =
+			PreferencesMap::<String>::load_from(&mut file);
+		if load_result.is_ok() {
+			let hash = load_result.unwrap();
+			if hash.contains_key(&HIGH_SCORE_PREF.to_string()) {
+				game.high_score = hash[&HIGH_SCORE_PREF.to_string()].parse().unwrap();
+			}
+		}
+	}
+
+	generate_new_block(&mut game); // first next block is zero
+	generate_new_block(&mut game);
 
 	let mut events = Events::new(EventSettings::new());
 	while let Some(e) = events.next(&mut window) {
 		if let Some(Button::Keyboard(key)) = e.press_args() {
 			match key {
-				Key::Left => move_left(&mut game_state),
-				Key::Right => move_right(&mut game_state),
+				Key::Left => move_left(&mut game),
+				Key::Right => move_right(&mut game),
 				Key::Down => {
-					if can_move_down(&game_state ) {
-						advance_block(&mut game_state);
+					if can_move_down(&game ) {
+						advance_block(&mut game);
 					}
 				}
 				Key::Space => {
-					if can_rotate(&game_state) {
-						rotate_block(&mut game_state.current_block);
+					if can_rotate(&game) {
+						rotate_block(&mut game.current_block);
 					}
 				}
 				_ => {}
@@ -628,16 +707,38 @@ fn main() {
 		}
 		
 		if let Some(args) = e.render_args() {
-			app.render(&args, &game_state, &mut glyph_cache);
+			app.render(&args, &game, &mut glyph_cache);
 		}
 
-		match game_state.status {
-			Status::Running => {
+		match game.status {
+			State::Running => {
 				if let Some(args) = e.update_args() {
-					app.update(&args, &mut game_state);
+					app.update(&args, &mut game);
 				}
 			},
-			_ => {}
+			State::LevelDone => {
+				if game.update_interval > UPDATE_LIMIT {
+					game.update_interval -= UPDATE_STEP;
+				}
+
+				game.level += 1;
+				game.status = State::Running;
+				
+				if game.score > game.high_score {
+					game.high_score = game.score;
+					let mut file = File::create(pref_path).unwrap();
+					prefs.insert(HIGH_SCORE_PREF.to_string(), game.high_score.to_string());
+					prefs.save_to(&mut file).unwrap();
+				}
+			},
+			State::GameOver => {
+				if game.score > game.high_score {
+					game.high_score = game.score;
+					let mut file = File::create(pref_path).unwrap();
+					prefs.insert(HIGH_SCORE_PREF.to_string(), game.high_score.to_string());
+					prefs.save_to(&mut file).unwrap();
+				}
+			}
 		}
 	}
 }
