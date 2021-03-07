@@ -161,13 +161,13 @@ impl GameState {
 		}
 	}
 
-  pub fn get_stage(&self, x: usize, y: usize) -> bool {
-    *self.stage.get(x, y).unwrap()
-  }
+	pub fn get_stage(&self, x: usize, y: usize) -> bool {
+		*self.stage.get(x, y).unwrap()
+	}
 
-  pub fn get_current_block(&self, x: usize, y: usize) -> bool {
-    *self.current_block.get(x, y).unwrap()
-  }
+	pub fn get_current_block(&self, x: usize, y: usize) -> bool {
+		*self.current_block.get(x, y).unwrap()
+	}
 
 	pub fn set_stage(&mut self, x: usize, y: usize, val: bool) {
 		self.stage.set(x, y, val);
@@ -178,16 +178,15 @@ impl GameState {
 fn can_move_down(game_state: &GameState) -> bool {
 	for y in (0..BLOCK_SIZE).rev() {
 		for x in 0..BLOCK_SIZE {
-			// println!("block {:?}", game_state.current_block);
 			if game_state.get_current_block(x, y) {
 
+				// hit bottom
 				if game_state.current_position.y + y == STAGE_HEIGHT-1 {
-					println!("hit bottom");
 					return false;
+				// hit block
 				} else if game_state.get_stage(
 					game_state.current_position.x + x,
 					game_state.current_position.y + y + 1) {
-					println!("hit block");
 					return false;
 				}
 			}
@@ -251,11 +250,10 @@ fn remove_full_rows(mut game_state: &mut GameState) {
 	}
 }
 
-fn ganerate_new_block(game_state: &mut GameState) {
+fn generate_new_block(game_state: &mut GameState) {
 	let mut rng = rand::thread_rng();
 	let part = rng.gen_range(0, BLOCKS.len());
 	
-	// println!("new block {}", part);
 	game_state.current_block = BlockType::from_iter(BLOCK_SIZE, BLOCK_SIZE,
 		BLOCKS[part].clone());
 
@@ -281,14 +279,13 @@ fn move_left(game_state: &mut GameState) {
 	for x in 0..BLOCK_SIZE {
 		for y in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
+				
 				if game_state.current_position.x + x == 0 {
-					println!("hit left wall");
-					return;
+					return; // hit left wall
 				} else if game_state.get_stage(
 						game_state.current_position.x + x - 1,
 						game_state.current_position.y + y) {
-					println!("cannot move left");
-					return;
+					return; // hit left block
 				}
 			}
 		}
@@ -302,13 +299,11 @@ fn move_right(game_state: &mut GameState) {
 		for y in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
 				if game_state.current_position.x + x == STAGE_WIDTH-1 {
-					println!("hit right wall {}", game_state.current_position.x + x);
-					return;
+					return; // hit right wall
 				} else if game_state.get_stage(
 					game_state.current_position.x + x + 1,
 					game_state.current_position.y + y) {
-					println!("cannot move right");
-					return;
+					return; // hit right block
 				}
 			}
 		}
@@ -317,98 +312,73 @@ fn move_right(game_state: &mut GameState) {
 	game_state.current_position.x += 1;
 }
 
-// fn copy_block(src: &BlockTypeProto, dst: &mut BlockTypeProto) {
-// 	*dst = src.clone();
-// 	// for i in 0..BLOCK_SIZE {
-// 	// 	for j in 0..BLOCK_SIZE {
-// 	// 		dst[i][j] = src[i][j];
-// 	// 	}
-// 	// }
-// }
-
 fn rotate_block(block: &mut BlockType) {
-
-	// println!("rotate start {:?}", &block);
-	// let mut tmp = Block::new();
-	let tmp: BlockType = block.clone();
-	// copy_block(&block, &mut tmp);
-	// tmp = block.Clone();
+	let mut tmp: BlockType = block.clone();
 
 	// move horizontal line to vertical
-	for i in  0..BLOCK_SIZE {
-		for j in 0..BLOCK_SIZE {
-			block.set(i, j, *tmp.get(i, BLOCK_SIZE-1-j).unwrap());
+	for x in  0..BLOCK_SIZE {
+		for y in 0..BLOCK_SIZE {
+			block.set(y, x, *tmp.get(x, BLOCK_SIZE-1-y).unwrap());
 		}
 	}
 
-	// println!("after move horiz {:?}", &block);
-
 	// shift to top left
-	// tmp = block.clone();
-	// // println!("rotate tmp {:?}", &tmp);
-	
-  // // tmp = block.Clone();
-	// let mut empty_rows = 0;
-	// let mut empty_cols = 0;
-	// for i in 0..BLOCK_SIZE {
-	// 	let mut is_empty = true;
-	// 	for j in 0..BLOCK_SIZE {
-	// 		if *tmp.get(i, j).unwrap() {
-	// 			is_empty = false;
-	// 			break;
-	// 		}
-	// 	}
+	tmp = block.clone();
+	let mut empty_rows = 0;
+	let mut empty_cols = 0;
+	for row in 0..BLOCK_SIZE {
+		let mut is_empty = true;
+		for col in 0..BLOCK_SIZE {
+			if *tmp.get(row, col).unwrap() {
+				is_empty = false;
+				break;
+			}
+		}
 
-	// 	if is_empty {
-	// 		empty_rows += 1;
-	// 	}
-	// }
+		if is_empty {
+			empty_rows += 1;
+		} else {
+			break;
+		}
+	}
 
-	// for i in  0..BLOCK_SIZE {
-	// 	let mut is_empty = true;
-	// 	for j in 0..BLOCK_SIZE {
-	// 		if *tmp.get(i, j).unwrap() {
-	// 			is_empty = false;
-	// 			break;
-	// 		}
-	// 	}
+	for col in 0..BLOCK_SIZE {
+		let mut is_empty = true;
+		for row in 0..BLOCK_SIZE {
+			if *tmp.get(row, col).unwrap() {
+				is_empty = false;
+				break;
+			}
+		}
 
-	// 	if is_empty {
-	// 		empty_cols += 1;
-	// 	}
-	// }
+		if is_empty {
+			empty_cols += 1;
+		} else {
+			break; 
+		}
+	}
 
-	// let tmp2: BlockType = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	// *block = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	// *block = [[false; BLOCK_SIZE]; BLOCK_SIZE];
-	// println!("rotate false {:?}", &block);
-	// println!("rotate tmp full {:?}", &tmp);
-	// // copy_block(&tmp2, &mut block);
-	// // // block = tmp2.Clone();
-	// *block = ZERO_BLOCK.clone();
-	// // println!("rows cols {} {}", empty_rows, empty_cols);
-	// for i in  0..BLOCK_SIZE - empty_rows {
-	// 	for j in 0..BLOCK_SIZE - empty_cols {
-	// 		block.set(i, j, *tmp.get(i + empty_rows, j + empty_cols).unwrap());
-	// 	}
-	// }
-
-	// println!("rotate end {:?}", &block);
+	*block = ZERO_BLOCK.clone();
+	for row in  0..BLOCK_SIZE - empty_rows {
+		for col in 0..BLOCK_SIZE - empty_cols {
+			block.set(row, col, *tmp.get(row + empty_rows, col + empty_cols).unwrap());
+		}
+	}
 }
 
 fn can_rotate(game_state: &GameState) -> bool {
 	let mut tmp : BlockType = game_state.current_block.clone();
-  // copy_block(&game_state.current_block, &mut tmp);
-  // tmp = game_state.current_block.Clone();
 
 	rotate_block(&mut tmp);
 
-	for i in 0..BLOCK_SIZE {
-		for j in 0..BLOCK_SIZE {
-			if *tmp.get(i, j).unwrap() {
-				let x = game_state.current_position.x + j;
-				let y = game_state.current_position.y + i;
-				if x > STAGE_WIDTH-1 || y > STAGE_HEIGHT-1 || game_state.get_stage(i, j) {
+	for x in 0..BLOCK_SIZE {
+		for y in 0..BLOCK_SIZE {
+			if *tmp.get(x, y).unwrap() {
+				let x = game_state.current_position.x + x;
+				let y = game_state.current_position.y + y;
+				if x > STAGE_WIDTH-1 || y > STAGE_HEIGHT-1 {
+					return false;
+				} else if game_state.get_stage(x, y) {
 					return false;
 				}
 			}
@@ -502,7 +472,7 @@ impl App {
 			} else {
 				apply_block_to_stage(&mut game_state);
 				remove_full_rows(&mut game_state);
-				ganerate_new_block(&mut game_state);
+				generate_new_block(&mut game_state);
 				if check_collision(&game_state) {
 					println!("GAME OVER!");
 				}
@@ -531,7 +501,7 @@ fn main() {
 		last_update: 0.0
 	};
 
-	ganerate_new_block(&mut game_state);
+	generate_new_block(&mut game_state);
 
 	let mut events = Events::new(EventSettings::new());
 	while let Some(e) = events.next(&mut window) {
