@@ -17,16 +17,21 @@ const STAGE_WIDTH: usize = 10;
 const STAGE_HEIGHT: usize = 20;
 const UPDATE_INTERVAL: f64 = 0.5;
 const BLOCK_SIZE: usize = 4;
-//const BG_OFFSET: f64 = 5.0;
-
-const SCREEN_WIDTH: u32 = 250;
+const SCREEN_WIDTH: u32 = 500;
 const SCREEN_HEIGHT: u32 = 500;
+const RENDER_STAGE_WIDTH: f64 = 250.0;
+const RENDER_STAGE_HEIGHT: f64 = 500.0;
+
 
 const BG_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
 const BG_FILL_COLOR: [f32; 4] = [0.4, 0.4, 0.4, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.9, 0.9, 0.9, 1.0];
 const BORDER_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+const MAX_SCORE: i64 = 1000;
+const ROW_SCORE: i64 = 100;
+const BONUS_SCORE: i64 = 50;
 
 type BlockTypeProto = Vec<bool>;
 type BlockType = Matrix<bool>;
@@ -143,13 +148,22 @@ const DEFAULT_START_POS: Pos = Pos{x: 3, y: 0};
 pub struct App {
 	gl: GlGraphics, // OpenGL drawing backend.
 	duration: f64,
-	last_update: f64
+	last_update: f64,
+	
+}
+
+enum Status {
+	Running,
+	LevelDone,
+	GameOver
 }
 
 pub struct GameState {
 	stage: StageType,
 	current_block: BlockType,
-	current_position: Pos
+	current_position: Pos,
+	score: i64,
+	status: Status,
 }
 
 impl GameState {
@@ -157,7 +171,9 @@ impl GameState {
 		GameState {
 			stage: ZERO_STAGE.clone(),
 			current_block: ZERO_BLOCK.clone(),
-			current_position: Pos{x: 0, y: 0}
+			current_position: Pos{x: 0, y: 0},
+			score: 0,
+			status: Status::Running
 		}
 	}
 
@@ -173,6 +189,9 @@ impl GameState {
 		self.stage.set(x, y, val);
 	}
 
+	fn inc_score(&mut self, val: i64) {
+		self.score += val;
+	}
 }
  
 fn can_move_down(game_state: &GameState) -> bool {
@@ -242,11 +261,18 @@ fn collapse_above(mut game_state: &mut GameState, row: usize) {
 }
 
 fn remove_full_rows(mut game_state: &mut GameState) {
+	let mut bonus = 0;
 	for y in 0..STAGE_HEIGHT {
 		while is_full_row(&game_state, STAGE_HEIGHT-1-y) {
 			remove_row(&mut game_state, STAGE_HEIGHT-1-y);
 			collapse_above(&mut game_state, STAGE_HEIGHT-1-y);
+			game_state.inc_score(ROW_SCORE);
+			bonus += 1;
 		}
+	}
+
+	if bonus > 1 {
+		game_state.inc_score(BONUS_SCORE);
 	}
 }
 
@@ -393,8 +419,10 @@ impl App {
 	fn render(&mut self, args: &RenderArgs, game_state: &GameState) {
 		use graphics::*;
 
-		let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
-		let cell_height = args.window_size[1] / (STAGE_HEIGHT as f64);
+		// let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
+		// let cell_height = args.window_size[1] / (STAGE_HEIGHT as f64);
+		let cell_width = RENDER_STAGE_WIDTH / (STAGE_WIDTH as f64);
+		let cell_height = RENDER_STAGE_HEIGHT / (STAGE_HEIGHT as f64);
 
 		self.gl.draw(args.viewport(), |c, gl| {
 			clear(BG_COLOR, gl); // clear screen
@@ -458,6 +486,9 @@ impl App {
 					}
 				}
 			}
+
+			// status
+			
 		});
 	}
 
@@ -472,8 +503,15 @@ impl App {
 			} else {
 				apply_block_to_stage(&mut game_state);
 				remove_full_rows(&mut game_state);
+
+				if game_state.score >= MAX_SCORE {
+					game_state.status = Status::LevelDone;
+					println!("LEVEL DONE!");
+				}
+
 				generate_new_block(&mut game_state);
 				if check_collision(&game_state) {
+					game_state.status = Status::GameOver;
 					println!("GAME OVER!");
 				}
 			}
@@ -486,7 +524,8 @@ fn main() {
 	let opengl = OpenGL::V3_2;
 
 	// Create an Glutin window.
-	let mut window: Window = WindowSettings::new("Tetris 🧙🍔", [SCREEN_WIDTH, SCREEN_HEIGHT])
+	let mut window: Window = WindowSettings::new(
+		"Tetris 🧙🍔", [SCREEN_WIDTH, SCREEN_HEIGHT])
 		.graphics_api(opengl)
 		.exit_on_esc(true)
 		.build()
@@ -527,8 +566,13 @@ fn main() {
 			app.render(&args, &game_state);
 		}
 
-		if let Some(args) = e.update_args() {
-			app.update(&args, &mut game_state);
+		match game_state.status {
+			Status::Running => {
+				if let Some(args) = e.update_args() {
+					app.update(&args, &mut game_state);
+				}
+			},
+			_ => {}
 		}
 	}
 }
