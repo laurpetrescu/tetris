@@ -16,6 +16,8 @@ use simple_matrix::Matrix;
 use lazy_static::lazy_static;
 use preferences::{PreferencesMap, Preferences};
 use std::fs::File;
+use rusty_audio::Audio;
+
 
 const HIGH_SCORE_PREF: &str = "highscore";
 
@@ -30,7 +32,7 @@ const SCREEN_HEIGHT: u32 = 500;
 const RENDER_STAGE_WIDTH: f64 = 250.0;
 const RENDER_STAGE_HEIGHT: f64 = 500.0;
 
-const BG_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 1.0];
+const BG_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
 const BG_FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
@@ -282,7 +284,7 @@ fn collapse_above(mut game_state: &mut GameState, row: usize) {
 	}
 }
 
-fn remove_full_rows(mut game_state: &mut GameState) {
+fn remove_full_rows(mut game_state: &mut GameState) -> bool {
 	let mut lines = 0;
 	for y in 0..STAGE_HEIGHT {
 		while is_full_row(&game_state, STAGE_HEIGHT-1-y) {
@@ -298,6 +300,8 @@ fn remove_full_rows(mut game_state: &mut GameState) {
 	if lines > 1 {
 		game_state.inc_score(BONUS_SCORE);
 	}
+
+	return lines > 0;
 }
 
 fn generate_new_block(game_state: &mut GameState) {
@@ -606,7 +610,7 @@ impl App {
 		});
 	}
 
-	fn update(&mut self, args: &UpdateArgs, mut game_state: &mut GameState) {
+	fn update(&mut self, args: &UpdateArgs, mut game_state: &mut GameState, audio: &mut Audio) {
 		self.duration += args.dt;
 		
 		if self.duration > self.last_update + game_state.update_interval {
@@ -616,7 +620,9 @@ impl App {
 				advance_block(&mut game_state);
 			} else {
 				apply_block_to_stage(&mut game_state);
-				remove_full_rows(&mut game_state);
+				if remove_full_rows(&mut game_state) {
+					audio.play("line");
+				}
 
 				if game_state.score >= LEVEL_UP_SCORE * game_state.level {
 					game_state.status = State::LevelDone;
@@ -683,6 +689,14 @@ fn main() {
 		}
 	}
 
+	// audio
+	let mut audio = Audio::new();
+	audio.add("move", "data/move.wav");
+	audio.add("line", "data/line.wav");
+	audio.add("levelup", "data/levelup.wav");
+	audio.add("rotate", "data/rotate.wav");
+	audio.add("gameover", "data/gameover.wav");
+
 	generate_new_block(&mut game); // first next block is zero
 	generate_new_block(&mut game);
 
@@ -690,8 +704,14 @@ fn main() {
 	while let Some(e) = events.next(&mut window) {
 		if let Some(Button::Keyboard(key)) = e.press_args() {
 			match key {
-				Key::Left => move_left(&mut game),
-				Key::Right => move_right(&mut game),
+				Key::Left => {
+					move_left(&mut game);
+					audio.play("move");
+				},
+				Key::Right => {
+					move_right(&mut game);
+					audio.play("move");
+				},
 				Key::Down => {
 					if can_move_down(&game ) {
 						advance_block(&mut game);
@@ -700,6 +720,7 @@ fn main() {
 				Key::Space => {
 					if can_rotate(&game) {
 						rotate_block(&mut game.current_block);
+						audio.play("rotate");
 					}
 				}
 				_ => {}
@@ -713,7 +734,7 @@ fn main() {
 		match game.status {
 			State::Running => {
 				if let Some(args) = e.update_args() {
-					app.update(&args, &mut game);
+					app.update(&args, &mut game, &mut audio);
 				}
 			},
 			State::LevelDone => {
@@ -723,6 +744,7 @@ fn main() {
 
 				game.level += 1;
 				game.status = State::Running;
+				audio.play("levelup");
 				
 				if game.score > game.high_score {
 					game.high_score = game.score;
@@ -733,6 +755,7 @@ fn main() {
 			},
 			State::GameOver => {
 				if game.score > game.high_score {
+					audio.play("gameover");
 					game.high_score = game.score;
 					let mut file = File::create(pref_path).unwrap();
 					prefs.insert(HIGH_SCORE_PREF.to_string(), game.high_score.to_string());

@@ -1,6 +1,6 @@
 [package]
 name = "tetris"
-version = "0.1.0"
+version = "2.0.0"
 authors = ["laur <>"]
 edition = "2018"
 
@@ -16,3 +16,4 @@ rand = "0.7.3"
 simple-matrix = "0.1"
 lazy_static = "1.4.0"
 preferences = "1.1.0"
+rusty_audio = "^1"
