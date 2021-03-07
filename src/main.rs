@@ -30,7 +30,7 @@ const SCREEN_HEIGHT: u32 = 500;
 const RENDER_STAGE_WIDTH: f64 = 250.0;
 const RENDER_STAGE_HEIGHT: f64 = 500.0;
 
-const BG_COLOR: [f32; 4] = [0.47, 0.54, 0.52, 1.0];
+const BG_COLOR: [f32; 4] = [0.7, 0.7, 0.7, 1.0];
 const BG_FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
@@ -637,7 +637,7 @@ fn main() {
 
 	// Create an Glutin window.
 	let mut window: Window = WindowSettings::new(
-		"Tetris 🧙🍔", [SCREEN_WIDTH, SCREEN_HEIGHT])
+		"Tetris 🧙🍔 v1.0", [SCREEN_WIDTH, SCREEN_HEIGHT])
 		.graphics_api(opengl)
 		.exit_on_esc(true)
 		.build()
