@@ -610,7 +610,10 @@ impl App {
 		});
 	}
 
-	fn update(&mut self, args: &UpdateArgs, mut game_state: &mut GameState, audio: &mut Audio) {
+	fn update(&mut self, args: &UpdateArgs
+			, mut game_state: &mut GameState
+			, audio: &mut Audio
+			, sound_on: bool) {
 		self.duration += args.dt;
 		
 		if self.duration > self.last_update + game_state.update_interval {
@@ -620,7 +623,7 @@ impl App {
 				advance_block(&mut game_state);
 			} else {
 				apply_block_to_stage(&mut game_state);
-				if remove_full_rows(&mut game_state) {
+				if remove_full_rows(&mut game_state) && sound_on {
 					audio.play("line");
 				}
 
@@ -690,6 +693,7 @@ fn main() {
 	}
 
 	// audio
+	let mut sound_on = true;
 	let mut audio = Audio::new();
 	audio.add("move", "data/move.wav");
 	audio.add("line", "data/line.wav");
@@ -706,23 +710,32 @@ fn main() {
 			match key {
 				Key::Left => {
 					move_left(&mut game);
-					audio.play("move");
+					if sound_on {
+						audio.play("move");
+					}
 				},
 				Key::Right => {
 					move_right(&mut game);
-					audio.play("move");
+					if sound_on {
+						audio.play("move");
+					}
 				},
 				Key::Down => {
 					if can_move_down(&game ) {
 						advance_block(&mut game);
 					}
-				}
-				Key::Space => {
+				},
+				Key::Space | Key::Up => {
 					if can_rotate(&game) {
 						rotate_block(&mut game.current_block);
-						audio.play("rotate");
+						if sound_on {
+							audio.play("rotate");
+						}
 					}
-				}
+				},
+				Key::S => {
+					sound_on = !sound_on;
+				},
 				_ => {}
 			}
 		}
@@ -734,7 +747,7 @@ fn main() {
 		match game.status {
 			State::Running => {
 				if let Some(args) = e.update_args() {
-					app.update(&args, &mut game, &mut audio);
+					app.update(&args, &mut game, &mut audio, sound_on);
 				}
 			},
 			State::LevelDone => {
@@ -744,8 +757,10 @@ fn main() {
 
 				game.level += 1;
 				game.status = State::Running;
-				audio.play("levelup");
-				
+				if sound_on {
+					audio.play("levelup");
+				}
+
 				if game.score > game.high_score {
 					game.high_score = game.score;
 					let mut file = File::create(pref_path).unwrap();
@@ -755,7 +770,10 @@ fn main() {
 			},
 			State::GameOver => {
 				if game.score > game.high_score {
-					audio.play("gameover");
+					if sound_on {
+						audio.play("gameover");
+					}
+
 					game.high_score = game.score;
 					let mut file = File::create(pref_path).unwrap();
 					prefs.insert(HIGH_SCORE_PREF.to_string(), game.high_score.to_string());
