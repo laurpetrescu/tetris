@@ -32,7 +32,7 @@ const SCREEN_HEIGHT: u32 = 500;
 const RENDER_STAGE_WIDTH: f64 = 250.0;
 const RENDER_STAGE_HEIGHT: f64 = 500.0;
 
-const BG_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 1.0];
+const BG_COLOR: [f32; 4] = [0.80, 0.85, 0.91, 1.0];
 const BG_FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const GRID_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.1];
 const FILL_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
@@ -165,10 +165,11 @@ pub struct App {
 enum State {
 	Running,
 	LevelDone,
-	GameOver
+	GameOver,
+	Pause
 }
 
-pub struct GameState {
+pub struct Game {
 	stage: StageType,
 	current_block: BlockType,
 	next_block: BlockType,
@@ -177,13 +178,13 @@ pub struct GameState {
 	high_score: i64,
 	level: i64,
 	lines: i64,
-	status: State,
+	state: State,
 	update_interval: f64,
 }
 
-impl GameState {
-	fn new() -> GameState {
-		GameState {
+impl Game {
+	fn new() -> Game {
+		Game {
 			stage: ZERO_STAGE.clone(),
 			current_block: ZERO_BLOCK.clone(),
 			next_block: ZERO_BLOCK.clone(),
@@ -192,7 +193,7 @@ impl GameState {
 			high_score: 0,
 			level: 1,
 			lines: 0,
-			status: State::Running,
+			state: State::Running,
 			update_interval: UPDATE_INTERVAL
 		}
 	}
@@ -218,7 +219,7 @@ impl GameState {
 	}
 }
  
-fn can_move_down(game_state: &GameState) -> bool {
+fn can_move_down(game_state: &Game) -> bool {
 	for y in (0..BLOCK_SIZE).rev() {
 		for x in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
@@ -239,11 +240,11 @@ fn can_move_down(game_state: &GameState) -> bool {
 	true
 }
 
-fn advance_block(game_state: &mut GameState) {
+fn advance_block(game_state: &mut Game) {
 	game_state.current_position.y += 1;
 }
 
-fn apply_block_to_stage(game_state: &mut GameState) {
+fn apply_block_to_stage(game_state: &mut Game) {
 	for x in 0..BLOCK_SIZE {
 		for y in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
@@ -256,7 +257,7 @@ fn apply_block_to_stage(game_state: &mut GameState) {
 	}
 }
 
-fn is_full_row(game_state: &GameState, row: usize) -> bool {
+fn is_full_row(game_state: &Game, row: usize) -> bool {
 	for x in 0..STAGE_WIDTH {
 		if !game_state.get_stage(x,row) {
 			return false;
@@ -266,25 +267,25 @@ fn is_full_row(game_state: &GameState, row: usize) -> bool {
 	true
 }
 
-fn remove_row(game_state: &mut GameState, row: usize) {
+fn remove_row(game_state: &mut Game, row: usize) {
 	for x in 0..STAGE_WIDTH {
 		game_state.set_stage(x, row, false);
 	}
 }
 
-fn copy_line(game_state: &mut GameState, src: usize, dst: usize) {
+fn copy_line(game_state: &mut Game, src: usize, dst: usize) {
 	for x in 0..STAGE_WIDTH {
 		game_state.set_stage(x, dst, game_state.get_stage(x, src));
 	}
 }
 
-fn collapse_above(mut game_state: &mut GameState, row: usize) {
+fn collapse_above(mut game_state: &mut Game, row: usize) {
 	for x in 0..row-1 {
 		copy_line(&mut game_state, row-1-x, row-x);
 	}
 }
 
-fn remove_full_rows(mut game_state: &mut GameState) -> bool {
+fn remove_full_rows(mut game_state: &mut Game) -> bool {
 	let mut lines = 0;
 	for y in 0..STAGE_HEIGHT {
 		while is_full_row(&game_state, STAGE_HEIGHT-1-y) {
@@ -304,7 +305,7 @@ fn remove_full_rows(mut game_state: &mut GameState) -> bool {
 	return lines > 0;
 }
 
-fn generate_new_block(game_state: &mut GameState) {
+fn generate_new_block(game_state: &mut Game) {
 	let mut rng = rand::thread_rng();
 	let part = rng.gen_range(0, BLOCKS.len());
 	
@@ -315,7 +316,7 @@ fn generate_new_block(game_state: &mut GameState) {
 	game_state.current_position = DEFAULT_START_POS;
 }
 
-fn check_collision(game_state: &GameState) -> bool {
+fn check_collision(game_state: &Game) -> bool {
 	for x in 0..BLOCK_SIZE {
 		for y in (0..BLOCK_SIZE).rev() {
 			if game_state.get_current_block(x, y)
@@ -330,7 +331,7 @@ fn check_collision(game_state: &GameState) -> bool {
 	false
 }
 
-fn move_left(game_state: &mut GameState) {
+fn move_left(game_state: &mut Game) {
 	for x in 0..BLOCK_SIZE {
 		for y in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
@@ -349,7 +350,7 @@ fn move_left(game_state: &mut GameState) {
 	game_state.current_position.x -= 1;
 }
 
-fn move_right(game_state: &mut GameState) {
+fn move_right(game_state: &mut Game) {
 	for x in (0..BLOCK_SIZE).rev() {
 		for y in 0..BLOCK_SIZE {
 			if game_state.get_current_block(x, y) {
@@ -421,7 +422,7 @@ fn rotate_block(block: &mut BlockType) {
 	}
 }
 
-fn can_rotate(game_state: &GameState) -> bool {
+fn can_rotate(game_state: &Game) -> bool {
 	let mut tmp : BlockType = game_state.current_block.clone();
 
 	rotate_block(&mut tmp);
@@ -445,16 +446,15 @@ fn can_rotate(game_state: &GameState) -> bool {
 
 
 impl App {
-	fn render(&mut self, args: &RenderArgs, game_state: &GameState, glyph_cache: &mut GlyphCache) {
+	fn render(&mut self, args: &RenderArgs, game: &Game, glyph_cache: &mut GlyphCache) {
 		use graphics::*;
 
-		// let cell_width = args.window_size[0] / (STAGE_WIDTH as f64);
-		// let cell_height = args.window_size[1] / (STAGE_HEIGHT as f64);
 		let cell_width = RENDER_STAGE_WIDTH / (STAGE_WIDTH as f64);
 		let cell_height = RENDER_STAGE_HEIGHT / (STAGE_HEIGHT as f64);
 
 		self.gl.draw(args.viewport(), |context, gl| {
-			clear(BG_COLOR, gl); // clear screen
+			// clear screen
+			clear(BG_COLOR, gl);
 
 			// draw grid
 			for x in 0..STAGE_WIDTH {
@@ -475,7 +475,7 @@ impl App {
 			// draw stage
 			for x in 0..STAGE_WIDTH {
 				for y in 0..STAGE_HEIGHT {
-					if game_state.get_stage(x, y) {
+					if game.get_stage(x, y) {
 						// fill
 						let posx = x as f64 * cell_width;
 						let posy = y as f64 * cell_height;
@@ -505,10 +505,10 @@ impl App {
 			// draw current block
 			for x in 0..BLOCK_SIZE {
 				for y in 0..BLOCK_SIZE {
-					if game_state.get_current_block(x, y) {
+					if game.get_current_block(x, y) {
 						// fill
-						let posx = (x + game_state.current_position.x) as f64 * cell_width;
-						let posy = (y + game_state.current_position.y) as f64 * cell_height;
+						let posx = (x + game.current_position.x) as f64 * cell_width;
+						let posy = (y + game.current_position.y) as f64 * cell_height;
 						let offset = cell_width / 6.0;
 						let part = rectangle::square(posx + offset, posy + offset,
 							 cell_width - offset*2.0);
@@ -526,52 +526,72 @@ impl App {
 
 			// text
 			text::Text::new_color(TEXT_COLOR, 16)
-				.draw(format!("Score: {}", game_state.score).as_str(),
+				.draw("Score:",
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(260.0, 50.0),
-					gl).unwrap();
-
-			
-			text::Text::new_color(TEXT_COLOR, 16)
-				.draw(format!("Level: {}", game_state.level).as_str(),
-					glyph_cache,
-					&context.draw_state,
-					context.transform.trans(260.0, 70.0),
+					context.transform.trans(300.0, 30.0),
 					gl).unwrap();
 
 			text::Text::new_color(TEXT_COLOR, 16)
-				.draw(format!("Lines: {}", game_state.lines).as_str(),
+				.draw(format!("{}", game.score).as_str(),
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(260.0, 90.0),
+					context.transform.trans(310.0, 50.0),
+					gl).unwrap();
+					
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw("Level:",
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(300.0, 80.0),
+					gl).unwrap();
+
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("{}", game.level).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(320.0, 100.0),
+					gl).unwrap();
+
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw("Lines:",
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(300.0, 130.0),
+					gl).unwrap();
+
+			text::Text::new_color(TEXT_COLOR, 16)
+				.draw(format!("{}", game.lines).as_str(),
+					glyph_cache,
+					&context.draw_state,
+					context.transform.trans(320.0, 150.0),
 					gl).unwrap();
 
 			text::Text::new_color(TEXT_COLOR, 16)
 				.draw("Next:",
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(260.0, 130.0),
+					context.transform.trans(300.0, 180.0),
 					gl).unwrap();
 				
 			text::Text::new_color(TEXT_COLOR, 16)
 				.draw("High score:",
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(260.0, 400.0),
+					context.transform.trans(280.0, 430.0),
 					gl).unwrap();
 					
 			text::Text::new_color(TEXT_COLOR, 16)
-				.draw(format!("{}", game_state.high_score).as_str(),
+				.draw(format!("{}", game.high_score).as_str(),
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(270.0, 420.0),
+					context.transform.trans(300.0, 450.0),
 					gl).unwrap();
 					
 			// draw next block
 			for x in 0..BLOCK_SIZE {
 				for y in 0..BLOCK_SIZE {
-					if game_state.get_next_block(x, y) {
+					if game.get_next_block(x, y) {
 						// fill
 						let posx = x as f64 * cell_width;
 						let posy = y as f64 * cell_height;
@@ -580,7 +600,7 @@ impl App {
 							 cell_width - offset*2.0);
 						rectangle(FILL_COLOR,
 							part,
-							context.transform.trans(270.0, 150.0),
+							context.transform.trans(300.0, 200.0),
 							gl);
 
 						// border
@@ -588,30 +608,31 @@ impl App {
 						let border = Rectangle::new_border(BORDER_COLOR, 1.0);
 						border.draw(border_part, 
 							&draw_state::DrawState::default(),
-							context.transform.trans(270.0, 150.0),
+							context.transform.trans(300.0, 200.0),
 						 	gl);
 
 					}
 				}
 			}
 
-			let end_str = match game_state.status {
+			let state_str = match game.state {
 				State::LevelDone => "LEVEL UP",
 				State::GameOver => "GAME OVER",
+				State::Pause => "PAUSE",
 				_ => ""
 			};
 
 			text::Text::new_color(TEXT_COLOR, 16)
-				.draw(format!("{}", end_str).as_str(),
+				.draw(format!("{}", state_str).as_str(),
 					glyph_cache,
 					&context.draw_state,
-					context.transform.trans(270.0, 270.0),
+					context.transform.trans(300.0, 330.0),
 					gl).unwrap();
 		});
 	}
 
 	fn update(&mut self, args: &UpdateArgs
-			, mut game_state: &mut GameState
+			, mut game_state: &mut Game
 			, audio: &mut Audio
 			, sound_on: bool) {
 		self.duration += args.dt;
@@ -628,12 +649,12 @@ impl App {
 				}
 
 				if game_state.score >= LEVEL_UP_SCORE * game_state.level {
-					game_state.status = State::LevelDone;
+					game_state.state = State::LevelDone;
 				}
 
 				generate_new_block(&mut game_state);
 				if check_collision(&game_state) {
-					game_state.status = State::GameOver;
+					game_state.state = State::GameOver;
 				}
 			}
 		}
@@ -646,13 +667,14 @@ fn main() {
 
 	// Create an Glutin window.
 	let mut window: Window = WindowSettings::new(
-		"Tetris 🧙🍔 v1.0", [SCREEN_WIDTH, SCREEN_HEIGHT])
+		"Tetris 🧙🍔 v2.0", [SCREEN_WIDTH, SCREEN_HEIGHT])
 		.graphics_api(opengl)
-		.exit_on_esc(true)
+		// .exit_on_esc(true)
 		.build()
 		.unwrap();
 
-	let mut game = GameState::new();
+	let mut game = Game::new();
+	let mut pause = false;
 
 	// Create a new game and run it.
 	let mut app = App {
@@ -709,28 +731,40 @@ fn main() {
 		if let Some(Button::Keyboard(key)) = e.press_args() {
 			match key {
 				Key::Left => {
-					move_left(&mut game);
-					if sound_on {
-						audio.play("move");
+					if !pause {
+						move_left(&mut game);
+						if sound_on {
+							audio.play("move");
+						}
 					}
 				},
 				Key::Right => {
-					move_right(&mut game);
-					if sound_on {
-						audio.play("move");
+					if !pause {
+						move_right(&mut game);
+						if sound_on {
+							audio.play("move");
+						}
 					}
 				},
 				Key::Down => {
-					if can_move_down(&game ) {
+					if !pause && can_move_down(&game ) {
 						advance_block(&mut game);
 					}
 				},
 				Key::Space | Key::Up => {
-					if can_rotate(&game) {
+					if !pause && can_rotate(&game) {
 						rotate_block(&mut game.current_block);
 						if sound_on {
 							audio.play("rotate");
 						}
+					}
+				},
+				Key::Escape | Key::P => {
+					pause = !pause;
+					if pause {
+						game.state = State::Pause;
+					} else {
+						game.state = State::Running;
 					}
 				},
 				Key::S => {
@@ -744,11 +778,13 @@ fn main() {
 			app.render(&args, &game, &mut glyph_cache);
 		}
 
-		match game.status {
+		match game.state {
 			State::Running => {
 				if let Some(args) = e.update_args() {
 					app.update(&args, &mut game, &mut audio, sound_on);
 				}
+			},
+			State::Pause => {
 			},
 			State::LevelDone => {
 				if game.update_interval > UPDATE_LIMIT {
@@ -756,7 +792,7 @@ fn main() {
 				}
 
 				game.level += 1;
-				game.status = State::Running;
+				game.state = State::Running;
 				if sound_on {
 					audio.play("levelup");
 				}
