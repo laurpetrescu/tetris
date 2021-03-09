@@ -732,7 +732,7 @@ fn main() {
 	}
 
 	// audio
-	let mut sound_on = true;
+	let mut sound_on = false;
 	let mut audio = Audio::new();
 	audio.add("move", "data/move.wav");
 	audio.add("line", "data/line.wav");
