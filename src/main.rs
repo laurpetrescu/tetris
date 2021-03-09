@@ -42,6 +42,7 @@ const TEXT_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const LEVEL_UP_SCORE: i64 = 1000;
 const ROW_SCORE: i64 = 100;
 const BONUS_SCORE: i64 = 50;
+const BONUS_ALL_LINES: i64 = 500;
 
 type BlockTypeProto = Vec<bool>;
 type BlockType = Matrix<bool>;
@@ -285,6 +286,18 @@ fn collapse_above(mut game_state: &mut Game, row: usize) {
 	}
 }
 
+fn stage_empty(game_state: &Game) -> bool {
+	for x in 0..STAGE_WIDTH {
+		for y in 0..STAGE_HEIGHT {
+			if game_state.get_stage(x, y) {
+				return false;
+			}
+		}
+	}
+
+	true
+}
+
 fn remove_full_rows(mut game_state: &mut Game) -> bool {
 	let mut lines = 0;
 	for y in 0..STAGE_HEIGHT {
@@ -300,6 +313,10 @@ fn remove_full_rows(mut game_state: &mut Game) -> bool {
 
 	if lines > 1 {
 		game_state.inc_score(BONUS_SCORE);
+	}
+
+	if stage_empty(game_state) {
+		game_state.inc_score(BONUS_ALL_LINES);
 	}
 
 	return lines > 0;
@@ -722,6 +739,7 @@ fn main() {
 	audio.add("levelup", "data/levelup.wav");
 	audio.add("rotate", "data/rotate.wav");
 	audio.add("gameover", "data/gameover.wav");
+	audio.play("levelup");
 
 	generate_new_block(&mut game); // first next block is zero
 	generate_new_block(&mut game);
@@ -770,10 +788,37 @@ fn main() {
 				Key::S => {
 					sound_on = !sound_on;
 				},
+				Key::R => {
+					match game.state {
+						State::GameOver => {
+							let hs = game.high_score;
+							game = Game::new();
+							game.high_score = hs;
+							generate_new_block(&mut game);
+							generate_new_block(&mut game);
+							audio.play("levelup");
+						},
+						_ => {}
+					}
+				}
 				_ => {}
 			}
 		}
 		
+		if let Some(Button::Mouse(key)) = e.press_args() {
+			match key {
+				MouseButton::Left => {
+					if !pause && can_rotate(&game) {
+						rotate_block(&mut game.current_block);
+						if sound_on {
+							audio.play("rotate");
+						}
+					}
+				},
+				_ => {}
+			}
+		}
+
 		if let Some(args) = e.render_args() {
 			app.render(&args, &game, &mut glyph_cache);
 		}
@@ -809,7 +854,7 @@ fn main() {
 					if sound_on {
 						audio.play("gameover");
 					}
-
+					
 					game.high_score = game.score;
 					let mut file = File::create(pref_path).unwrap();
 					prefs.insert(HIGH_SCORE_PREF.to_string(), game.high_score.to_string());
