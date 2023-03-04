@@ -6,6 +6,7 @@ extern crate rand;
 extern crate find_folder;
 extern crate preferences;
 
+
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL, GlyphCache, TextureSettings};
 use piston::event_loop::{EventSettings, Events};
@@ -460,7 +461,6 @@ fn can_rotate(game_state: &Game) -> bool {
 
 	true
 }
-
 
 impl App {
 	fn render(&mut self, args: &RenderArgs, game: &Game, glyph_cache: &mut GlyphCache) {
